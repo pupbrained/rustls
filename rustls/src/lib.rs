@@ -325,7 +325,6 @@ mod log {
 #[macro_use]
 mod msgs;
 mod anchors;
-mod cipher;
 mod common_state;
 mod conn;
 /// Crypto provider interface.
@@ -366,7 +365,7 @@ pub mod internal {
     }
     /// Low-level TLS message decryption functions.
     pub mod cipher {
-        pub use crate::cipher::MessageDecrypter;
+        pub use crate::crypto::cipher::MessageDecrypter;
     }
     /// Low-level TLS record layer functions.
     pub mod record_layer {
