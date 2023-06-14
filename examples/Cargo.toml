@@ -9,7 +9,7 @@ publish = false
 
 [features]
 dangerous_configuration = ["rustls/dangerous_configuration"]
-quic = ["rustls/quic"]
+#quic = ["rustls/quic"]
 
 [dependencies]
 docopt = "~1.1"

@@ -13,7 +13,7 @@ members = ["."]
 
 [features]
 dangerous_configuration = ["rustls/dangerous_configuration"]
-quic = ["rustls/quic"]
+quic = [] #["rustls/quic"]
 
 [dependencies]
 rustls = { path = "../rustls", features = [ "logging" ]}
