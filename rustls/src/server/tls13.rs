@@ -27,6 +27,7 @@ use crate::server::ServerConfig;
 #[cfg(feature = "secret_extraction")]
 use crate::suites::PartiallyExtractedSecrets;
 use crate::ticketer;
+use crate::tls13::is_sigscheme_supported_in_tls13;
 use crate::tls13::key_schedule::{KeyScheduleTraffic, KeyScheduleTrafficWithClientFinishedPending};
 use crate::tls13::Tls13CipherSuite;
 use crate::verify;
@@ -169,8 +170,7 @@ mod client_hello {
                     )
                 })?;
 
-            let tls13_schemes = sign::supported_sign_tls13();
-            sigschemes_ext.retain(|scheme| tls13_schemes.contains(scheme));
+            sigschemes_ext.retain(is_sigscheme_supported_in_tls13);
 
             let shares_ext = client_hello
                 .get_keyshare_extension()
