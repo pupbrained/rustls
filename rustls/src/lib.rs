@@ -353,6 +353,8 @@ mod enums;
 mod key;
 mod key_log;
 mod key_log_file;
+#[path = "sign.rs"]
+mod signer;
 mod suites;
 mod ticketer;
 mod versions;
@@ -511,7 +513,12 @@ pub mod version {
 pub use crypto::ring::kx_group;
 
 /// Message signing interfaces and implementations.
-pub mod sign;
+pub mod sign {
+    pub use crate::crypto::ring::sign::{
+        any_ecdsa_type, any_eddsa_type, any_supported_type, RsaSigningKey,
+    };
+    pub use crate::signer::{CertifiedKey, Signer, SigningKey};
+}
 
 #[cfg(feature = "quic")]
 #[cfg_attr(docsrs, doc(cfg(feature = "quic")))]
