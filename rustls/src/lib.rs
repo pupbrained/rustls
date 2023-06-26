@@ -324,7 +324,6 @@ mod log {
 
 #[macro_use]
 mod msgs;
-mod anchors;
 mod common_state;
 mod conn;
 /// Crypto provider interface.
@@ -377,12 +376,12 @@ pub mod internal {
 }
 
 // The public interface is:
-pub use crate::anchors::{OwnedTrustAnchor, RootCertStore};
 pub use crate::builder::{
     ConfigBuilder, ConfigSide, WantsCipherSuites, WantsKxGroups, WantsVerifier, WantsVersions,
 };
 pub use crate::common_state::{CommonState, IoState, Side};
 pub use crate::conn::{Connection, ConnectionCommon, Reader, SideData, Writer};
+pub use crate::crypto::ring::anchors::{OwnedTrustAnchor, RootCertStore};
 pub use crate::crypto::ring::suites::{ALL_CIPHER_SUITES, DEFAULT_CIPHER_SUITES};
 pub use crate::crypto::ring::Ticketer;
 pub use crate::crypto::ring::{SupportedKxGroup, ALL_KX_GROUPS};

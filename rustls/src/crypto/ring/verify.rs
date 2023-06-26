@@ -1,4 +1,4 @@
-use crate::anchors::{OwnedTrustAnchor, RootCertStore};
+use super::anchors::{OwnedTrustAnchor, RootCertStore};
 use crate::client::ServerName;
 use crate::enums::SignatureScheme;
 use crate::error::{CertRevocationListError, CertificateError, Error, PeerMisbehaved};

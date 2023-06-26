@@ -8,7 +8,7 @@ use crate::key_log::NoKeyLog;
 use crate::suites::SupportedCipherSuite;
 
 use crate::verify;
-use crate::{anchors, key, versions};
+use crate::{key, versions};
 
 use super::client_conn::Resumption;
 
@@ -19,7 +19,7 @@ impl<C: CryptoProvider> ConfigBuilder<ClientConfig<C>, WantsVerifier<C>> {
     /// Choose how to verify server certificates.
     pub fn with_root_certificates(
         self,
-        root_store: anchors::RootCertStore,
+        root_store: ring::anchors::RootCertStore,
     ) -> ConfigBuilder<ClientConfig<C>, WantsClientCert<C>> {
         ConfigBuilder {
             state: WantsClientCert {
