@@ -1,5 +1,6 @@
 use crate::crypto;
 use crate::crypto::cipher::{AeadKey, Iv, MessageDecrypter, MessageEncrypter};
+use crate::crypto::hash;
 use crate::enums::SignatureScheme;
 #[cfg(feature = "secret_extraction")]
 use crate::suites::ConnectionTrafficSecrets;
@@ -79,4 +80,25 @@ pub(crate) fn is_sigscheme_supported_in_tls13(sigscheme: &SignatureScheme) -> bo
             | SignatureScheme::RSA_PSS_SHA256
             | SignatureScheme::ED25519
     )
+}
+
+/// Constructs the signature message specified in section 4.4.3 of RFC8446.
+pub(crate) fn construct_tls13_client_verify_message(handshake_hash: &hash::Output) -> Vec<u8> {
+    construct_tls13_verify_message(handshake_hash, b"TLS 1.3, client CertificateVerify\x00")
+}
+
+/// Constructs the signature message specified in section 4.4.3 of RFC8446.
+pub(crate) fn construct_tls13_server_verify_message(handshake_hash: &hash::Output) -> Vec<u8> {
+    construct_tls13_verify_message(handshake_hash, b"TLS 1.3, server CertificateVerify\x00")
+}
+
+fn construct_tls13_verify_message(
+    handshake_hash: &hash::Output,
+    context_string_with_0: &[u8],
+) -> Vec<u8> {
+    let mut msg = Vec::new();
+    msg.resize(64, 0x20u8);
+    msg.extend_from_slice(context_string_with_0);
+    msg.extend_from_slice(handshake_hash.as_ref());
+    msg
 }
