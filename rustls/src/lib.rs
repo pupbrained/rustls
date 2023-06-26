@@ -431,10 +431,11 @@ pub mod client {
     pub use handy::ClientSessionMemoryCache;
 
     #[cfg(feature = "dangerous_configuration")]
-    pub use crate::verify::{
-        verify_server_cert_signed_by_trust_anchor, verify_server_name, HandshakeSignatureValid,
-        ServerCertVerified, ServerCertVerifier, WebPkiVerifier,
+    pub use crate::crypto::ring::verify::{
+        verify_server_cert_signed_by_trust_anchor, verify_server_name, WebPkiVerifier,
     };
+    #[cfg(feature = "dangerous_configuration")]
+    pub use crate::verify::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
     #[cfg(feature = "dangerous_configuration")]
     pub use client_conn::danger::DangerousClientConfig;
 
@@ -455,10 +456,11 @@ pub mod server {
     mod tls12;
     mod tls13;
 
-    pub use crate::verify::{
-        AllowAnyAnonymousOrAuthenticatedClient, AllowAnyAuthenticatedClient, NoClientAuth,
+    pub use crate::crypto::ring::verify::{
+        AllowAnyAnonymousOrAuthenticatedClient, AllowAnyAuthenticatedClient, ParsedCertificate,
         UnparsedCertRevocationList,
     };
+    pub use crate::verify::NoClientAuth;
     pub use builder::WantsServerCert;
     pub use handy::ResolvesServerCertUsingSni;
     pub use handy::{NoServerSessionStorage, ServerSessionMemoryCache};
@@ -470,8 +472,6 @@ pub mod server {
 
     #[cfg(feature = "dangerous_configuration")]
     pub use crate::dns_name::DnsName;
-    #[cfg(feature = "dangerous_configuration")]
-    pub use crate::key::ParsedCertificate;
     #[cfg(feature = "dangerous_configuration")]
     pub use crate::verify::{ClientCertVerified, ClientCertVerifier};
 }

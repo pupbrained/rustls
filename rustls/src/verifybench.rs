@@ -7,8 +7,8 @@
 use core::time::Duration;
 use std::time::{Instant, SystemTime};
 
+use crate::crypto::ring::verify::WebPkiVerifier;
 use crate::key;
-use crate::verify;
 use crate::verify::ServerCertVerifier;
 use crate::{anchors, OwnedTrustAnchor};
 
@@ -213,7 +213,7 @@ impl Context {
     }
 
     fn bench(&self, count: usize) {
-        let verifier = verify::WebPkiVerifier::new(self.roots.clone());
+        let verifier = WebPkiVerifier::new(self.roots.clone());
         const OCSP_RESPONSE: &[u8] = &[];
         let mut times = Vec::new();
 

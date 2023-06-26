@@ -1,10 +1,12 @@
 use crate::builder::{ConfigBuilder, WantsVerifier};
 use crate::client::handy;
 use crate::client::{ClientConfig, ResolvesClientCert};
+use crate::crypto::ring;
 use crate::crypto::{CryptoProvider, KeyExchange};
 use crate::error::Error;
 use crate::key_log::NoKeyLog;
 use crate::suites::SupportedCipherSuite;
+
 use crate::verify;
 use crate::{anchors, key, versions};
 
@@ -24,7 +26,7 @@ impl<C: CryptoProvider> ConfigBuilder<ClientConfig<C>, WantsVerifier<C>> {
                 cipher_suites: self.state.cipher_suites,
                 kx_groups: self.state.kx_groups,
                 versions: self.state.versions,
-                verifier: Arc::new(verify::WebPkiVerifier::new(root_store)),
+                verifier: Arc::new(ring::verify::WebPkiVerifier::new(root_store)),
             },
             side: PhantomData,
         }

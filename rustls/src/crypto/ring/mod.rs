@@ -18,6 +18,7 @@ pub(crate) mod suites;
 #[cfg(feature = "tls12")]
 pub(crate) mod tls12;
 pub(crate) mod tls13;
+pub(crate) mod verify;
 
 /// Using software keys for authentication.
 pub mod sign;
