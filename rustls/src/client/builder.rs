@@ -75,7 +75,9 @@ impl<C: CryptoProvider> ConfigBuilder<ClientConfig<C>, WantsClientCert<C>> {
         cert_chain: Vec<key::Certificate>,
         key_der: key::PrivateKey,
     ) -> Result<ClientConfig<C>, Error> {
-        let resolver = handy::AlwaysResolvesClientCert::new(cert_chain, &key_der)?;
+        let resolver = crate::crypto::ring::client::handy::AlwaysResolvesClientCert::new(
+            cert_chain, &key_der,
+        )?;
         Ok(self.with_client_cert_resolver(Arc::new(resolver)))
     }
 
