@@ -16,6 +16,8 @@ pub(crate) mod anchors;
 pub(crate) mod client;
 pub(crate) mod hash;
 pub(crate) mod hmac;
+#[cfg(feature = "quic")]
+pub(crate) mod quic;
 pub(crate) mod server;
 pub(crate) mod suites;
 #[cfg(feature = "tls12")]

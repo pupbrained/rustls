@@ -3239,7 +3239,7 @@ mod test_quic {
 
     #[test]
     fn test_quic_handshake() {
-        fn equal_packet_keys(x: &quic::PacketKey, y: &quic::PacketKey) -> bool {
+        fn equal_packet_keys(x: &Box<dyn quic::PacketKey>, y: &Box<dyn quic::PacketKey>) -> bool {
             // Check that these two sets of keys are equal.
             let mut buf = vec![0; 32];
             let (header, payload_tag) = buf.split_at_mut(8);
@@ -3669,6 +3669,7 @@ mod test_quic {
 
     #[test]
     fn packet_key_api() {
+        use rustls::cipher_suite::TLS13_AES_128_GCM_SHA256;
         use rustls::quic::{Keys, Version};
         use rustls::Side;
 
@@ -3701,7 +3702,14 @@ mod test_quic {
             0x08, 0x06, 0x04, 0x80, 0x00, 0xff, 0xff,
         ];
 
-        let client_keys = Keys::initial(Version::V1, &CONNECTION_ID, Side::Client);
+        let client_keys = Keys::initial(
+            Version::V1,
+            TLS13_AES_128_GCM_SHA256
+                .tls13()
+                .unwrap(),
+            &CONNECTION_ID,
+            Side::Client,
+        );
         assert_eq!(
             client_keys
                 .local
@@ -3837,7 +3845,14 @@ mod test_quic {
         let (first, rest) = header.split_at_mut(1);
         let sample = &payload[..sample_len];
 
-        let server_keys = Keys::initial(Version::V1, &CONNECTION_ID, Side::Server);
+        let server_keys = Keys::initial(
+            Version::V1,
+            TLS13_AES_128_GCM_SHA256
+                .tls13()
+                .unwrap(),
+            &CONNECTION_ID,
+            Side::Server,
+        );
         server_keys
             .remote
             .header
