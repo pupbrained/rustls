@@ -256,6 +256,12 @@
 //! - `read_buf`: When building with Rust Nightly, adds support for the unstable
 //!   `std::io::ReadBuf` and related APIs. This reduces costs from initializing
 //!   buffers. Will do nothing on non-Nightly releases.
+//!
+//! - `defaultprovider`: this makes the rustls crate depend on the `webpki` and
+//!   `ring` crates, which are used for certificate validation and cryptography.
+//!   Without this feature, these items must be provided externally to the core
+//!   rustls crate.  See [the cryptography provider](`manual::_06_custom_cryptography`)
+//!   for more details.
 
 // Require docs for public APIs, deny unsafe code, etc.
 #![forbid(unsafe_code, unused_must_use)]
@@ -381,9 +387,13 @@ pub use crate::builder::{
 };
 pub use crate::common_state::{CommonState, IoState, Side};
 pub use crate::conn::{Connection, ConnectionCommon, Reader, SideData, Writer};
+#[cfg(feature = "defaultprovider")]
 pub use crate::crypto::ring::anchors::{OwnedTrustAnchor, RootCertStore};
+#[cfg(feature = "defaultprovider")]
 pub use crate::crypto::ring::suites::{ALL_CIPHER_SUITES, DEFAULT_CIPHER_SUITES};
+#[cfg(feature = "defaultprovider")]
 pub use crate::crypto::ring::Ticketer;
+#[cfg(feature = "defaultprovider")]
 pub use crate::crypto::ring::{SupportedKxGroup, ALL_KX_GROUPS};
 pub use crate::enums::{
     AlertDescription, CipherSuite, ContentType, HandshakeType, ProtocolVersion, SignatureAlgorithm,
@@ -429,7 +439,7 @@ pub mod client {
     };
     pub use handy::ClientSessionMemoryCache;
 
-    #[cfg(feature = "dangerous_configuration")]
+    #[cfg(all(feature = "dangerous_configuration", feature = "defaultprovider"))]
     pub use crate::crypto::ring::verify::{
         verify_server_cert_signed_by_trust_anchor, verify_server_name, WebPkiVerifier,
     };
@@ -455,7 +465,9 @@ pub mod server {
     mod tls12;
     mod tls13;
 
+    #[cfg(feature = "defaultprovider")]
     pub use crate::crypto::ring::server::handy::ResolvesServerCertUsingSni;
+    #[cfg(feature = "defaultprovider")]
     pub use crate::crypto::ring::verify::{
         AllowAnyAnonymousOrAuthenticatedClient, AllowAnyAuthenticatedClient, ParsedCertificate,
         UnparsedCertRevocationList,
@@ -481,21 +493,16 @@ pub use server::{ServerConfig, ServerConnection};
 ///
 /// [`ALL_CIPHER_SUITES`] is provided as an array of all of these values.
 pub mod cipher_suite {
-    #[cfg(feature = "tls12")]
-    pub use crate::crypto::ring::tls12::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256;
-    #[cfg(feature = "tls12")]
-    pub use crate::crypto::ring::tls12::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384;
-    #[cfg(feature = "tls12")]
-    pub use crate::crypto::ring::tls12::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256;
-    #[cfg(feature = "tls12")]
-    pub use crate::crypto::ring::tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
-    #[cfg(feature = "tls12")]
-    pub use crate::crypto::ring::tls12::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384;
-    #[cfg(feature = "tls12")]
-    pub use crate::crypto::ring::tls12::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256;
-    pub use crate::crypto::ring::tls13::TLS13_AES_128_GCM_SHA256;
-    pub use crate::crypto::ring::tls13::TLS13_AES_256_GCM_SHA384;
-    pub use crate::crypto::ring::tls13::TLS13_CHACHA20_POLY1305_SHA256;
+    #[cfg(all(feature = "tls12", feature = "defaultprovider"))]
+    pub use crate::crypto::ring::tls12::{
+        TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+        TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+        TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+    };
+    #[cfg(feature = "defaultprovider")]
+    pub use crate::crypto::ring::tls13::{
+        TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
+    };
     pub use crate::suites::CipherSuiteCommon;
 }
 
@@ -508,11 +515,13 @@ pub mod version {
     pub use crate::versions::TLS13;
 }
 
+#[cfg(feature = "defaultprovider")]
 /// All defined key exchange groups supported by *ring* appear in this module.
 pub use crypto::ring::kx_group;
 
 /// Message signing interfaces and implementations.
 pub mod sign {
+    #[cfg(feature = "defaultprovider")]
     pub use crate::crypto::ring::sign::{
         any_ecdsa_type, any_eddsa_type, any_supported_type, RsaSigningKey,
     };

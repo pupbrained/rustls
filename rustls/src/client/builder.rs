@@ -1,14 +1,14 @@
 use crate::builder::{ConfigBuilder, WantsVerifier};
 use crate::client::handy;
 use crate::client::{ClientConfig, ResolvesClientCert};
-use crate::crypto::ring;
 use crate::crypto::{CryptoProvider, KeyExchange};
-use crate::error::Error;
 use crate::key_log::NoKeyLog;
 use crate::suites::SupportedCipherSuite;
+#[cfg(feature = "defaultprovider")]
+use crate::{crypto::ring, error::Error, key};
 
 use crate::verify;
-use crate::{key, versions};
+use crate::versions;
 
 use super::client_conn::Resumption;
 
@@ -16,6 +16,7 @@ use alloc::sync::Arc;
 use core::marker::PhantomData;
 
 impl<C: CryptoProvider> ConfigBuilder<ClientConfig<C>, WantsVerifier<C>> {
+    #[cfg(feature = "defaultprovider")]
     /// Choose how to verify server certificates.
     pub fn with_root_certificates(
         self,
@@ -63,6 +64,7 @@ pub struct WantsClientCert<C: CryptoProvider> {
 }
 
 impl<C: CryptoProvider> ConfigBuilder<ClientConfig<C>, WantsClientCert<C>> {
+    #[cfg(feature = "defaultprovider")]
     /// Sets a single certificate chain and matching private key for use
     /// in client authentication.
     ///
@@ -75,12 +77,11 @@ impl<C: CryptoProvider> ConfigBuilder<ClientConfig<C>, WantsClientCert<C>> {
         cert_chain: Vec<key::Certificate>,
         key_der: key::PrivateKey,
     ) -> Result<ClientConfig<C>, Error> {
-        let resolver = crate::crypto::ring::client::handy::AlwaysResolvesClientCert::new(
-            cert_chain, &key_der,
-        )?;
+        let resolver = ring::client::handy::AlwaysResolvesClientCert::new(cert_chain, &key_der)?;
         Ok(self.with_client_cert_resolver(Arc::new(resolver)))
     }
 
+    #[cfg(feature = "defaultprovider")]
     /// Sets a single certificate chain and matching private key for use
     /// in client authentication.
     ///

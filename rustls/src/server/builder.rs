@@ -1,13 +1,13 @@
 use crate::builder::{ConfigBuilder, WantsVerifier};
 use crate::crypto::{CryptoProvider, KeyExchange};
-use crate::error::Error;
-use crate::key;
 use crate::server::handy;
 use crate::server::{ResolvesServerCert, ServerConfig};
 use crate::suites::SupportedCipherSuite;
 use crate::verify;
 use crate::versions;
 use crate::NoKeyLog;
+#[cfg(feature = "defaultprovider")]
+use crate::{crypto::ring, error::Error, key};
 
 use alloc::sync::Arc;
 use core::marker::PhantomData;
@@ -48,6 +48,7 @@ pub struct WantsServerCert<C: CryptoProvider> {
 }
 
 impl<C: CryptoProvider> ConfigBuilder<ServerConfig<C>, WantsServerCert<C>> {
+    #[cfg(feature = "defaultprovider")]
     /// Sets a single certificate chain and matching private key.  This
     /// certificate and key is used for all subsequent connections,
     /// irrespective of things like SNI hostname.
@@ -66,11 +67,11 @@ impl<C: CryptoProvider> ConfigBuilder<ServerConfig<C>, WantsServerCert<C>> {
         cert_chain: Vec<key::Certificate>,
         key_der: key::PrivateKey,
     ) -> Result<ServerConfig<C>, Error> {
-        let resolver =
-            crate::crypto::ring::server::handy::AlwaysResolvesChain::new(cert_chain, &key_der)?;
+        let resolver = ring::server::handy::AlwaysResolvesChain::new(cert_chain, &key_der)?;
         Ok(self.with_cert_resolver(Arc::new(resolver)))
     }
 
+    #[cfg(feature = "defaultprovider")]
     /// Sets a single certificate chain, matching private key, OCSP
     /// response and SCTs.  This certificate and key is used for all
     /// subsequent connections, irrespective of things like SNI hostname.
@@ -86,9 +87,8 @@ impl<C: CryptoProvider> ConfigBuilder<ServerConfig<C>, WantsServerCert<C>> {
         key_der: key::PrivateKey,
         ocsp: Vec<u8>,
     ) -> Result<ServerConfig<C>, Error> {
-        let resolver = crate::crypto::ring::server::handy::AlwaysResolvesChain::new_with_extras(
-            cert_chain, &key_der, ocsp,
-        )?;
+        let resolver =
+            ring::server::handy::AlwaysResolvesChain::new_with_extras(cert_chain, &key_der, ocsp)?;
         Ok(self.with_cert_resolver(Arc::new(resolver)))
     }
 
