@@ -349,7 +349,6 @@ mod vecbuf;
 mod verify;
 #[cfg(test)]
 mod verifybench;
-mod x509;
 #[macro_use]
 mod check;
 mod bs_debug;

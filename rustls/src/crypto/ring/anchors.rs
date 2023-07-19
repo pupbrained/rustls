@@ -1,6 +1,6 @@
+use super::x509;
 #[cfg(feature = "logging")]
 use crate::log::{debug, trace};
-use crate::x509;
 use crate::{key, DistinguishedName};
 use crate::{CertificateError, Error};
 

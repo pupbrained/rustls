@@ -1,8 +1,8 @@
+use super::x509::{wrap_in_asn1_len, wrap_in_sequence};
 use crate::enums::{SignatureAlgorithm, SignatureScheme};
 use crate::error::Error;
 use crate::key;
 use crate::sign::{Signer, SigningKey};
-use crate::x509::{wrap_in_asn1_len, wrap_in_sequence};
 
 use ring::io::der;
 use ring::signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair};
