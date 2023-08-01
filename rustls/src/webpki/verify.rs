@@ -6,6 +6,7 @@ use crate::key::Certificate;
 #[cfg(feature = "logging")]
 use crate::log::trace;
 use crate::msgs::handshake::DistinguishedName;
+use crate::tls13::is_sigscheme_supported_in_tls13;
 use crate::verify::{
     ClientCertVerified, ClientCertVerifier, DigitallySignedStruct, HandshakeSignatureValid,
     ServerCertVerified, ServerCertVerifier,
@@ -13,25 +14,6 @@ use crate::verify::{
 
 use std::sync::Arc;
 use std::time::SystemTime;
-
-type SignatureAlgorithms = &'static [&'static dyn webpki::SignatureVerificationAlgorithm];
-
-/// Which signature verification mechanisms we support.  No particular
-/// order.
-static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
-    webpki::ECDSA_P256_SHA256,
-    webpki::ECDSA_P256_SHA384,
-    webpki::ECDSA_P384_SHA256,
-    webpki::ECDSA_P384_SHA384,
-    webpki::ED25519,
-    webpki::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
-    webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
-    webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
-    webpki::RSA_PKCS1_2048_8192_SHA256,
-    webpki::RSA_PKCS1_2048_8192_SHA384,
-    webpki::RSA_PKCS1_2048_8192_SHA512,
-    webpki::RSA_PKCS1_3072_8192_SHA384,
-];
 
 /// Verify that the end-entity certificate `end_entity` is a valid server cert
 /// and chains to at least one of the [OwnedTrustAnchor] in the `roots` [RootCertStore].
@@ -47,6 +29,7 @@ pub fn verify_server_cert_signed_by_trust_anchor(
     roots: &RootCertStore,
     intermediates: &[Certificate],
     now: SystemTime,
+    supported_algs: &[&dyn webpki::SignatureVerificationAlgorithm],
 ) -> Result<(), Error> {
     let chain = intermediate_chain(intermediates);
     let trust_roots = trust_roots(roots);
@@ -54,7 +37,7 @@ pub fn verify_server_cert_signed_by_trust_anchor(
 
     cert.0
         .verify_for_usage(
-            SUPPORTED_SIG_ALGS,
+            supported_algs,
             &trust_roots,
             &chain,
             webpki_now,
@@ -123,7 +106,13 @@ impl ServerCertVerifier for WebPkiVerifier {
     ) -> Result<ServerCertVerified, Error> {
         let cert = ParsedCertificate::try_from(end_entity)?;
 
-        verify_server_cert_signed_by_trust_anchor(&cert, &self.roots, intermediates, now)?;
+        verify_server_cert_signed_by_trust_anchor(
+            &cert,
+            &self.roots,
+            intermediates,
+            now,
+            self.supported.all,
+        )?;
 
         if !ocsp_response.is_empty() {
             trace!("Unvalidated OCSP response: {:?}", ocsp_response.to_vec());
@@ -139,7 +128,7 @@ impl ServerCertVerifier for WebPkiVerifier {
         cert: &Certificate,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        Self::default_verify_tls12_signature(message, cert, dss)
+        verify_signed_struct(message, cert, dss, &self.supported)
     }
 
     fn verify_tls13_signature(
@@ -148,11 +137,11 @@ impl ServerCertVerifier for WebPkiVerifier {
         cert: &Certificate,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        Self::default_verify_tls13_signature(message, cert, dss)
+        verify_tls13(message, cert, dss, &self.supported)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        Self::default_supported_verify_schemes()
+        self.supported.supported_schemes()
     }
 }
 
@@ -161,6 +150,7 @@ impl ServerCertVerifier for WebPkiVerifier {
 #[cfg_attr(docsrs, doc(cfg(feature = "dangerous_configuration")))]
 pub struct WebPkiVerifier {
     roots: RootCertStore,
+    supported: WebPkiSupportedAlgorithms,
 }
 
 #[allow(unreachable_pub)]
@@ -169,42 +159,42 @@ impl WebPkiVerifier {
     ///
     /// `roots` is the set of trust anchors to trust for issuing server certs.
     pub fn new(roots: RootCertStore) -> Self {
-        Self { roots }
+        Self::new_with_algorithms(roots, SUPPORTED_SIG_ALGS)
     }
 
-    /// Which signature verification schemes the `webpki` crate supports.
-    pub fn default_supported_verify_schemes() -> Vec<SignatureScheme> {
-        vec![
-            SignatureScheme::ECDSA_NISTP384_SHA384,
-            SignatureScheme::ECDSA_NISTP256_SHA256,
-            SignatureScheme::ED25519,
-            SignatureScheme::RSA_PSS_SHA512,
-            SignatureScheme::RSA_PSS_SHA384,
-            SignatureScheme::RSA_PSS_SHA256,
-            SignatureScheme::RSA_PKCS1_SHA512,
-            SignatureScheme::RSA_PKCS1_SHA384,
-            SignatureScheme::RSA_PKCS1_SHA256,
-        ]
+    /// Constructs a new `WebPkiVerifier`.
+    ///
+    /// `roots` is the set of trust anchors to trust for issuing server certs.
+    /// `supported` is the set of supported algorithms that will be used for
+    /// certificate verification and TLS handshake signature verification.
+    pub fn new_with_algorithms(roots: RootCertStore, supported: WebPkiSupportedAlgorithms) -> Self {
+        Self { roots, supported }
     }
 
-    /// An full implementation of `ServerCertVerifier::verify_tls12_signature` or
+    /// A full implementation of `ServerCertVerifier::verify_tls12_signature` or
     /// `ClientCertVerifier::verify_tls12_signature`.
     pub fn default_verify_tls12_signature(
         message: &[u8],
         cert: &Certificate,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        verify_signed_struct(message, cert, dss)
+        verify_signed_struct(message, cert, dss, &SUPPORTED_SIG_ALGS)
     }
 
-    /// An full implementation of `ServerCertVerifier::verify_tls13_signature` or
+    /// A full implementation of `ServerCertVerifier::verify_tls13_signature` or
     /// `ClientCertVerifier::verify_tls13_signature`.
     pub fn default_verify_tls13_signature(
         message: &[u8],
         cert: &Certificate,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        verify_tls13(message, cert, dss)
+        verify_tls13(message, cert, dss, &SUPPORTED_SIG_ALGS)
+    }
+
+    /// A full implementation of `ServerCertVerifier::supported_verify_schemes()` or
+    /// `ClientCertVerifier::supported_verify_schemes()`.
+    pub fn default_supported_verify_schemes() -> Vec<SignatureScheme> {
+        SUPPORTED_SIG_ALGS.supported_schemes()
     }
 }
 
@@ -243,6 +233,7 @@ pub struct AllowAnyAuthenticatedClient {
     roots: RootCertStore,
     subjects: Vec<DistinguishedName>,
     crls: Vec<webpki::OwnedCertRevocationList>,
+    supported: WebPkiSupportedAlgorithms,
 }
 
 impl AllowAnyAuthenticatedClient {
@@ -258,6 +249,7 @@ impl AllowAnyAuthenticatedClient {
                 .collect(),
             crls: Vec::new(),
             roots,
+            supported: SUPPORTED_SIG_ALGS,
         }
     }
 
@@ -314,7 +306,7 @@ impl ClientCertVerifier for AllowAnyAuthenticatedClient {
 
         cert.0
             .verify_for_usage(
-                SUPPORTED_SIG_ALGS,
+                self.supported.all,
                 &trust_roots,
                 &chain,
                 now,
@@ -331,7 +323,7 @@ impl ClientCertVerifier for AllowAnyAuthenticatedClient {
         cert: &Certificate,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        WebPkiVerifier::default_verify_tls12_signature(message, cert, dss)
+        verify_signed_struct(message, cert, dss, &self.supported)
     }
 
     fn verify_tls13_signature(
@@ -340,11 +332,11 @@ impl ClientCertVerifier for AllowAnyAuthenticatedClient {
         cert: &Certificate,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        WebPkiVerifier::default_verify_tls13_signature(message, cert, dss)
+        verify_tls13(message, cert, dss, &self.supported)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        WebPkiVerifier::default_supported_verify_schemes()
+        self.supported.supported_schemes()
     }
 }
 
@@ -417,7 +409,8 @@ impl ClientCertVerifier for AllowAnyAnonymousOrAuthenticatedClient {
         cert: &Certificate,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        WebPkiVerifier::default_verify_tls12_signature(message, cert, dss)
+        self.inner
+            .verify_tls12_signature(message, cert, dss)
     }
 
     fn verify_tls13_signature(
@@ -426,11 +419,12 @@ impl ClientCertVerifier for AllowAnyAnonymousOrAuthenticatedClient {
         cert: &Certificate,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        WebPkiVerifier::default_verify_tls13_signature(message, cert, dss)
+        self.inner
+            .verify_tls13_signature(message, cert, dss)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        WebPkiVerifier::default_supported_verify_schemes()
+        self.inner.supported_verify_schemes()
     }
 }
 
@@ -459,40 +453,108 @@ fn pki_error(error: webpki::Error) -> Error {
     }
 }
 
-static ECDSA_SHA256: SignatureAlgorithms =
-    &[webpki::ECDSA_P256_SHA256, webpki::ECDSA_P384_SHA256];
+type SignatureAlgorithms = &'static [&'static dyn webpki::SignatureVerificationAlgorithm];
 
-static ECDSA_SHA384: SignatureAlgorithms =
-    &[webpki::ECDSA_P256_SHA384, webpki::ECDSA_P384_SHA384];
+/// Describes which `webpki` signature verification algorithms are supported and
+/// how they map to TLS `SignatureScheme`s.
+#[derive(Clone, Copy)]
+#[allow(unreachable_pub)]
+pub struct WebPkiSupportedAlgorithms {
+    /// A list of all supported signature verification algorithms.
+    ///
+    /// Used for verifying certificate chains.
+    ///
+    /// The order of this list is not significant.
+    pub all: SignatureAlgorithms,
 
-static ED25519: SignatureAlgorithms = &[webpki::ED25519];
+    /// A mapping from TLS `SignatureScheme`s to matching webpki signature verification algorithms.
+    ///
+    /// This is one (`SignatureScheme`) to many (`webpki::SignatureVerificationAlgorithm`) because
+    /// (depending on the protocol version) there is not necessary a 1-to-1 mapping.
+    ///
+    /// For TLS1.2, all `webpki:SignatureVerificationAlgorithm`s are tried in sequence.
+    ///
+    /// For TLS1.3, only the first is tried.
+    ///
+    /// The supported schemes in this mapping is communicated to the peer and the order is significant.
+    /// The first mapping is our highest preference.
+    pub mapping: &'static [(SignatureScheme, SignatureAlgorithms)],
+}
 
-static RSA_SHA256: SignatureAlgorithms = &[webpki::RSA_PKCS1_2048_8192_SHA256];
-static RSA_SHA384: SignatureAlgorithms = &[webpki::RSA_PKCS1_2048_8192_SHA384];
-static RSA_SHA512: SignatureAlgorithms = &[webpki::RSA_PKCS1_2048_8192_SHA512];
-static RSA_PSS_SHA256: SignatureAlgorithms = &[webpki::RSA_PSS_2048_8192_SHA256_LEGACY_KEY];
-static RSA_PSS_SHA384: SignatureAlgorithms = &[webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY];
-static RSA_PSS_SHA512: SignatureAlgorithms = &[webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY];
+impl WebPkiSupportedAlgorithms {
+    /// Return all the `scheme` items in `mapping`, maintaining order.
+    fn supported_schemes(&self) -> Vec<SignatureScheme> {
+        self.mapping
+            .iter()
+            .map(|item| item.0)
+            .collect()
+    }
 
-fn convert_scheme(scheme: SignatureScheme) -> Result<SignatureAlgorithms, Error> {
-    match scheme {
-        // nb. for TLS1.2 the curve is not fixed by SignatureScheme.
-        SignatureScheme::ECDSA_NISTP256_SHA256 => Ok(ECDSA_SHA256),
-        SignatureScheme::ECDSA_NISTP384_SHA384 => Ok(ECDSA_SHA384),
-
-        SignatureScheme::ED25519 => Ok(ED25519),
-
-        SignatureScheme::RSA_PKCS1_SHA256 => Ok(RSA_SHA256),
-        SignatureScheme::RSA_PKCS1_SHA384 => Ok(RSA_SHA384),
-        SignatureScheme::RSA_PKCS1_SHA512 => Ok(RSA_SHA512),
-
-        SignatureScheme::RSA_PSS_SHA256 => Ok(RSA_PSS_SHA256),
-        SignatureScheme::RSA_PSS_SHA384 => Ok(RSA_PSS_SHA384),
-        SignatureScheme::RSA_PSS_SHA512 => Ok(RSA_PSS_SHA512),
-
-        _ => Err(PeerMisbehaved::SignedHandshakeWithUnadvertisedSigScheme.into()),
+    /// Return the first item in `mapping` that matches `scheme`.
+    fn convert_scheme(&self, scheme: SignatureScheme) -> Result<SignatureAlgorithms, Error> {
+        self.mapping
+            .iter()
+            .filter(|item| item.0 == scheme)
+            .map(|item| item.1)
+            .next()
+            .ok_or_else(|| PeerMisbehaved::SignedHandshakeWithUnadvertisedSigScheme.into())
     }
 }
+
+/// A `WebPkiSupportedAlgorithms` value that reflects webpki's capabilities when
+/// compiled against *ring*.
+static SUPPORTED_SIG_ALGS: WebPkiSupportedAlgorithms = WebPkiSupportedAlgorithms {
+    all: &[
+        webpki::ECDSA_P256_SHA256,
+        webpki::ECDSA_P256_SHA384,
+        webpki::ECDSA_P384_SHA256,
+        webpki::ECDSA_P384_SHA384,
+        webpki::ED25519,
+        webpki::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+        webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+        webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+        webpki::RSA_PKCS1_2048_8192_SHA256,
+        webpki::RSA_PKCS1_2048_8192_SHA384,
+        webpki::RSA_PKCS1_2048_8192_SHA512,
+        webpki::RSA_PKCS1_3072_8192_SHA384,
+    ],
+    mapping: &[
+        // nb. for TLS1.2 the curve is not fixed by SignatureScheme. for TLS1.3 it is.
+        (
+            SignatureScheme::ECDSA_NISTP384_SHA384,
+            &[webpki::ECDSA_P384_SHA384, webpki::ECDSA_P256_SHA384],
+        ),
+        (
+            SignatureScheme::ECDSA_NISTP256_SHA256,
+            &[webpki::ECDSA_P256_SHA256, webpki::ECDSA_P384_SHA256],
+        ),
+        (SignatureScheme::ED25519, &[webpki::ED25519]),
+        (
+            SignatureScheme::RSA_PSS_SHA512,
+            &[webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY],
+        ),
+        (
+            SignatureScheme::RSA_PSS_SHA384,
+            &[webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY],
+        ),
+        (
+            SignatureScheme::RSA_PSS_SHA256,
+            &[webpki::RSA_PSS_2048_8192_SHA256_LEGACY_KEY],
+        ),
+        (
+            SignatureScheme::RSA_PKCS1_SHA512,
+            &[webpki::RSA_PKCS1_2048_8192_SHA512],
+        ),
+        (
+            SignatureScheme::RSA_PKCS1_SHA384,
+            &[webpki::RSA_PKCS1_2048_8192_SHA384],
+        ),
+        (
+            SignatureScheme::RSA_PKCS1_SHA256,
+            &[webpki::RSA_PKCS1_2048_8192_SHA256],
+        ),
+    ],
+};
 
 fn verify_sig_using_any_alg(
     cert: &webpki::EndEntityCert,
@@ -516,8 +578,9 @@ fn verify_signed_struct(
     message: &[u8],
     cert: &Certificate,
     dss: &DigitallySignedStruct,
+    supported_schemes: &WebPkiSupportedAlgorithms,
 ) -> Result<HandshakeSignatureValid, Error> {
-    let possible_algs = convert_scheme(dss.scheme)?;
+    let possible_algs = supported_schemes.convert_scheme(dss.scheme)?;
     let cert = webpki::EndEntityCert::try_from(cert.0.as_ref()).map_err(pki_error)?;
 
     verify_sig_using_any_alg(&cert, possible_algs, message, dss.signature())
@@ -525,28 +588,17 @@ fn verify_signed_struct(
         .map(|_| HandshakeSignatureValid::assertion())
 }
 
-fn convert_alg_tls13(
-    scheme: SignatureScheme,
-) -> Result<&'static dyn webpki::SignatureVerificationAlgorithm, Error> {
-    use crate::enums::SignatureScheme::*;
-
-    match scheme {
-        ECDSA_NISTP256_SHA256 => Ok(webpki::ECDSA_P256_SHA256),
-        ECDSA_NISTP384_SHA384 => Ok(webpki::ECDSA_P384_SHA384),
-        ED25519 => Ok(webpki::ED25519),
-        RSA_PSS_SHA256 => Ok(webpki::RSA_PSS_2048_8192_SHA256_LEGACY_KEY),
-        RSA_PSS_SHA384 => Ok(webpki::RSA_PSS_2048_8192_SHA384_LEGACY_KEY),
-        RSA_PSS_SHA512 => Ok(webpki::RSA_PSS_2048_8192_SHA512_LEGACY_KEY),
-        _ => Err(PeerMisbehaved::SignedHandshakeWithUnadvertisedSigScheme.into()),
-    }
-}
-
 fn verify_tls13(
     msg: &[u8],
     cert: &Certificate,
     dss: &DigitallySignedStruct,
+    supported_schemes: &WebPkiSupportedAlgorithms,
 ) -> Result<HandshakeSignatureValid, Error> {
-    let alg = convert_alg_tls13(dss.scheme)?;
+    if !is_sigscheme_supported_in_tls13(&dss.scheme) {
+        return Err(PeerMisbehaved::SignedHandshakeWithUnadvertisedSigScheme.into());
+    }
+
+    let alg = supported_schemes.convert_scheme(dss.scheme)?[0];
 
     let cert = webpki::EndEntityCert::try_from(cert.0.as_ref()).map_err(pki_error)?;
 

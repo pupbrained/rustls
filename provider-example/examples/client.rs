@@ -1,5 +1,4 @@
 /// TODO: this is simpleclient, using the crypto defined in rustls_provider_example.
-/// XXX: it does no certificate verification!
 use std::sync::Arc;
 
 use std::io::{stdout, Read, Write};
@@ -7,44 +6,25 @@ use std::net::TcpStream;
 
 use rustls_provider_example::Provider;
 
-struct ExtremelyBad;
-
-impl rustls::client::ServerCertVerifier for ExtremelyBad {
-    fn verify_server_cert(
-        &self,
-        _: &rustls::Certificate,
-        _: &[rustls::Certificate],
-        _: &rustls::ServerName,
-        _: &[u8],
-        _: std::time::SystemTime,
-    ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::ServerCertVerified::assertion())
-    }
-    fn verify_tls12_signature(
-        &self,
-        _: &[u8],
-        _: &rustls::Certificate,
-        _: &rustls::DigitallySignedStruct,
-    ) -> Result<rustls::client::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::HandshakeSignatureValid::assertion())
-    }
-    fn verify_tls13_signature(
-        &self,
-        _: &[u8],
-        _: &rustls::Certificate,
-        _: &rustls::DigitallySignedStruct,
-    ) -> Result<rustls::client::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::HandshakeSignatureValid::assertion())
-    }
-    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        vec![rustls::SignatureScheme::RSA_PKCS1_SHA256]
-    }
-}
-
 fn main() {
+    env_logger::init();
+
+    let mut root_store = rustls::RootCertStore::empty();
+    root_store.add_server_trust_anchors(
+        webpki_roots::TLS_SERVER_ROOTS
+            .iter()
+            .map(|ta| {
+                rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    ta.subject,
+                    ta.spki,
+                    ta.name_constraints,
+                )
+            }),
+    );
+
     let config = rustls::ClientConfig::<Provider>::builder()
         .with_safe_defaults()
-        .with_custom_certificate_verifier(Arc::new(ExtremelyBad))
+        .with_custom_certificate_verifier(Provider::certificate_verifier(root_store))
         .with_no_client_auth();
 
     let server_name = "www.rust-lang.org".try_into().unwrap();

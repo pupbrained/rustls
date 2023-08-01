@@ -7,10 +7,10 @@
 use core::time::Duration;
 use std::time::{Instant, SystemTime};
 
-use crate::crypto::ring::anchors;
-use crate::crypto::ring::verify::WebPkiVerifier;
 use crate::key;
 use crate::verify::ServerCertVerifier;
+use crate::webpki::anchors;
+use crate::webpki::verify::WebPkiVerifier;
 use crate::OwnedTrustAnchor;
 
 use webpki_roots;

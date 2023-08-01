@@ -12,7 +12,6 @@ use ring::rand::{SecureRandom, SystemRandom};
 use alloc::sync::Arc;
 use core::fmt;
 
-pub(crate) mod anchors;
 pub(crate) mod client;
 pub(crate) mod hash;
 pub(crate) mod hmac;
@@ -23,8 +22,6 @@ pub(crate) mod suites;
 #[cfg(feature = "tls12")]
 pub(crate) mod tls12;
 pub(crate) mod tls13;
-pub(crate) mod verify;
-mod x509;
 
 /// Using software keys for authentication.
 pub mod sign;

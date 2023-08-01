@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 mod aead;
 mod hash;
 mod hmac;
 mod kx;
+mod verify;
 
 pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
     rustls::SupportedCipherSuite::Tls13(&rustls::Tls13CipherSuite {
@@ -16,6 +19,17 @@ pub static TLS13_CHACHA20_POLY1305_SHA256: rustls::SupportedCipherSuite =
 static ALL_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[TLS13_CHACHA20_POLY1305_SHA256];
 
 pub struct Provider;
+
+impl Provider {
+    pub fn certificate_verifier(
+        roots: rustls::RootCertStore,
+    ) -> Arc<dyn rustls::client::ServerCertVerifier> {
+        Arc::new(rustls::client::WebPkiVerifier::new_with_algorithms(
+            roots,
+            verify::ALGORITHMS,
+        ))
+    }
+}
 
 impl rustls::crypto::CryptoProvider for Provider {
     type KeyExchange = kx::KeyExchange;

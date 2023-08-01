@@ -257,10 +257,12 @@
 //!   `std::io::ReadBuf` and related APIs. This reduces costs from initializing
 //!   buffers. Will do nothing on non-Nightly releases.
 //!
-//! - `defaultprovider`: this makes the rustls crate depend on the `webpki` and
-//!   `ring` crates, which are used for certificate validation and cryptography.
-//!   Without this feature, these items must be provided externally to the core
-//!   rustls crate.  See [the cryptography provider](`manual::_06_custom_cryptography`)
+//! - `defaultprovider`: this makes the rustls crate depend on the `ring` crate,
+//!   which is used for cryptography by default.
+//!
+//!   Without this feature, the underlying cryptography and certificate validation
+//!   must be provided externally to the core rustls crate.
+//!   See [the cryptography provider](`manual::_06_custom_cryptography`)
 //!   for more details.
 
 // Require docs for public APIs, deny unsafe code, etc.
@@ -362,6 +364,8 @@ mod signer;
 mod suites;
 mod ticketer;
 mod versions;
+mod webpki;
+mod x509;
 
 /// Internal classes which may be useful outside the library.
 /// The contents of this section DO NOT form part of the stable interface.
@@ -386,8 +390,6 @@ pub use crate::builder::{
 };
 pub use crate::common_state::{CommonState, IoState, Side};
 pub use crate::conn::{Connection, ConnectionCommon, Reader, SideData, Writer};
-#[cfg(feature = "defaultprovider")]
-pub use crate::crypto::ring::anchors::{OwnedTrustAnchor, RootCertStore};
 #[cfg(feature = "defaultprovider")]
 pub use crate::crypto::ring::suites::{ALL_CIPHER_SUITES, DEFAULT_CIPHER_SUITES};
 #[cfg(feature = "defaultprovider")]
@@ -418,9 +420,12 @@ pub use crate::tls12::Tls12CipherSuite;
 pub use crate::tls13::Tls13CipherSuite;
 pub use crate::verify::DigitallySignedStruct;
 pub use crate::versions::{SupportedProtocolVersion, ALL_VERSIONS, DEFAULT_VERSIONS};
+pub use crate::webpki::anchors::{OwnedTrustAnchor, RootCertStore};
 
 /// Items for use by custom cryptography providers:
 pub use crate::rand::GetRandomFailed;
+
+pub use crate::webpki::verify::WebPkiSupportedAlgorithms;
 
 /// Items for use in a client.
 pub mod client {
@@ -441,12 +446,11 @@ pub mod client {
     };
     pub use handy::ClientSessionMemoryCache;
 
-    #[cfg(all(feature = "dangerous_configuration", feature = "defaultprovider"))]
-    pub use crate::crypto::ring::verify::{
-        verify_server_cert_signed_by_trust_anchor, verify_server_name, WebPkiVerifier,
-    };
     #[cfg(feature = "dangerous_configuration")]
     pub use crate::verify::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+    pub use crate::webpki::verify::{
+        verify_server_cert_signed_by_trust_anchor, verify_server_name, WebPkiVerifier,
+    };
     #[cfg(feature = "dangerous_configuration")]
     pub use client_conn::danger::DangerousClientConfig;
 
@@ -467,13 +471,13 @@ pub mod server {
     mod tls12;
     mod tls13;
 
-    #[cfg(feature = "defaultprovider")]
-    pub use crate::crypto::ring::server::handy::ResolvesServerCertUsingSni;
-    #[cfg(feature = "defaultprovider")]
-    pub use crate::crypto::ring::verify::{
+    pub use crate::webpki::verify::{
         AllowAnyAnonymousOrAuthenticatedClient, AllowAnyAuthenticatedClient, ParsedCertificate,
         UnparsedCertRevocationList,
     };
+
+    #[cfg(feature = "defaultprovider")]
+    pub use crate::crypto::ring::server::handy::ResolvesServerCertUsingSni;
     pub use crate::verify::NoClientAuth;
     pub use builder::WantsServerCert;
     pub use handy::{NoServerSessionStorage, ServerSessionMemoryCache};
