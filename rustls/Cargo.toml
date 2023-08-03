@@ -17,7 +17,7 @@ rustversion = { version = "1.0.6", optional = true }
 
 [dependencies]
 log = { version = "0.4.4", optional = true }
-ring = "0.16.20"
+ring = { version = "0.16.20", git = "https://github.com/svenpaulsen/ring", branch = "v0.16.20-patched" }
 sct = "0.7.0"
 webpki = { package = "rustls-webpki", version = "0.101.2", features = ["alloc", "std"] }
 
